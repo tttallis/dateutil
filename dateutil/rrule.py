@@ -186,8 +186,8 @@ class rrulebase(object):
             before.</str>"""
             
         # Nah, bugger it. If there's no end date, let's just return -1
-        if not self._until:
-            return -1
+#         if not self._until:
+#             return -1
         if self._len is None:
             for x in self:
                 pass
@@ -426,10 +426,12 @@ class rrule(rrulebase):
      """
     def __init__(self, freq, dtstart=None,
                  interval=1, wkst=None, count=None, until=None, bysetpos=None,
+#                  interval=None, wkst=None, count=None, until=None, bysetpos=None,
                  bymonth=None, bymonthday=None, byyearday=None, byeaster=None,
                  byweekno=None, byweekday=None,
                  byhour=None, byminute=None, bysecond=None,
-                 cache=False):
+                 cache=False, normalized_start=False,
+                 original_str='',):
         super(rrule, self).__init__(cache)
         global easter
         if not dtstart:

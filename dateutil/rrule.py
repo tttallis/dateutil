@@ -181,8 +181,13 @@ class rrulebase(object):
 
     # __len__() introduces a large performance penality.
     def count(self):
-        """ Returns the number of recurrences in this set. It will have go
-            trough the whole recurrence, if this hasn't been done before. """
+        """ Returns the number of recurrences in this set. <str>It will have
+            go through the whole recurrence, if this hasn't been done 
+            before.</str>"""
+            
+        # Nah, bugger it. If there's no end date, let's just return -1
+        if not self._until:
+            return -1
         if self._len is None:
             for x in self:
                 pass

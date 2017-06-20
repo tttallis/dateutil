@@ -32,3 +32,18 @@ class weekday(object):
             return s
         else:
             return "%s(%+d)" % (s, self.n)
+
+def ordinal(n):
+    """
+    Converts an integer to its ordinal as a string. 1 is '1st', 2 is '2nd',
+    3 is '3rd', etc. Works for any integer.
+    """
+    try:
+        value = int(n)
+    except (TypeError, ValueError):
+        return n
+    if 10 < n < 14: return '%sth' % n
+    if n % 10 == 1: return '%sst' % n
+    if n % 10 == 2: return '%snd' % n
+    if n % 10 == 3: return '%srd' % n
+    return '%sth' % n

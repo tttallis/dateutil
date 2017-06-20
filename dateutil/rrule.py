@@ -9,6 +9,8 @@ import itertools
 import datetime
 import calendar
 import sys
+import re
+from ._common import ordinal
 
 try:
     from math import gcd
@@ -55,6 +57,7 @@ FREQNAMES = ['YEARLY', 'MONTHLY', 'WEEKLY', 'DAILY', 'HOURLY', 'MINUTELY', 'SECO
  HOURLY,
  MINUTELY,
  SECONDLY) = list(range(7))
+(REPETITION_ONLY, NORMAL, FULLY_RESOLVED) = range(3) # UGLY
 
 # Imported on demand.
 easter = None

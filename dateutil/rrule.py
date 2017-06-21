@@ -57,7 +57,10 @@ FREQNAMES = ['YEARLY', 'MONTHLY', 'WEEKLY', 'DAILY', 'HOURLY', 'MINUTELY', 'SECO
  HOURLY,
  MINUTELY,
  SECONDLY) = list(range(7))
-(REPETITION_ONLY, NORMAL, FULLY_RESOLVED) = range(3) # UGLY
+(REPETITION_ONLY, NORMAL, FULLY_RESOLVED) = list(range(3)) # UGLY
+
+DATETIME_FORMAT = '%Y%m%dT%H%M%S' # won't cope with aware datetimes
+HUMAN_WEEKDAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
 
 # Imported on demand.
 easter = None
@@ -307,6 +310,109 @@ class rrulebase(object):
         return l
 
 
+        
+# (TERSE, NORMAL, VERBOSE, DEBUG)=range(4)
+# 
+# class HumanizerBase(object):
+#     def render_time(self, dt):
+#         if self.verbosity < VERBOSE:  
+#             if dt.minute:
+#                 return datetime.datetime.strftime(dt, '%I:%M%p').lstrip('0').lower()
+#             else:
+#                 return datetime.datetime.strftime(dt, '%I%p').lstrip('0').lower()
+#         else:
+#             return datetime.datetime.strftime(dt, '%I:%M%p').lstrip('0').lower()
+#     
+#     def render_day(self, dt):
+#         def terse():
+#             return datetime.datetime.strftime(dt, '%d %b')
+#             
+#         def normal():
+#             return datetime.datetime.strftime(dt, '%a %d %b')
+#         
+#         def verbose():
+#             return datetime.datetime.strftime(dt, '%A %d %B')
+# 
+#         return {
+#             TERSE:terse(),
+#             NORMAL:normal(),
+#             VERBOSE:verbose(),
+#             DEBUG:verbose(),  # nota bene!
+#         }[self.verbosity]
+#         
+# class RRuleHumanizer(HumanizerBase): # add a convenient hook so this can be overridden
+#     def __init__(self, rrule, verbosity=NORMAL):
+#         self.dt = rrule._dtstart
+#         self.freq = rrule._freq
+#         self.interval = rrule._interval
+#         self.wkst = rrule._wkst
+#         self.until = rrule._until
+#         self.bymonth = rrule._bymonth
+#         self.byweekno = rrule._byweekno
+#         self.byyearday = rrule._byyearday
+#         self.byweekday = rrule._byweekday
+#         self.byeaster = rrule._byeaster
+#         self.bymonthday = rrule._bymonthday
+#         self.bynmonthday = rrule._bynmonthday
+#         self.bysetpos = rrule._bysetpos
+#         self.byhour = rrule._byhour
+#         self.byminute = rrule._byminute
+#         self.bysecond = rrule._bysecond
+#         self.verbosity = verbosity
+#         
+#     def render(self):
+#         if self.until:
+#             return "%(start)s - %(until)s, %(time)s %(repeat)s" % {
+#                 'start':self.render_start(),
+#                 'until':self.render_until(),
+#                 'time':self.render_time(self.dt),
+#                 'repeat':self.render_repeat(),
+#             }
+#         else:
+#             return "from %(start)s, %(time)s %(repeat)s" % {
+#                 'start':self.render_start(),
+#                 'time':self.render_time(self.dt),
+#                 'repeat':self.render_repeat(),
+#             }
+# #             return "%(datetime)s%(repeat)s" % {'datetime':self.render_start(), 'repeat':self.render_repeat()}
+#                 
+#     def render_start(self):
+#         if self.until and self.dt.year == self.until.year:
+#             return self.render_day(self.dt)
+#         else:
+#             return "%s %d" % (self.render_day(self.dt), self.dt.year)
+#                 
+#     def render_until(self):
+#         return "%s %d" % (self.render_day(self.until), self.until.year)
+#             
+#     def render_interval(self):
+#         if self.interval != 1:
+#             return ' %s' % ordinal(self.interval)
+#         else:
+#             return ''
+#     
+#     def render_repeat(self):
+#         if self.verbosity > 1:
+#             verbiage = "repeating "
+#         else:
+#             verbiage = "- "
+#         if self.freq == YEARLY:
+#             monthstr = datetime.datetime.strftime(self.dt, "%B")
+#             return "%s%s %s, every%s year from %s" % (
+#                 verbiage,
+#                 monthstr, 
+#                 ordinal(self.dt.day), 
+#                 self.interval, 
+#                 self.dt.year,
+#             )
+#         elif self.freq == MONTHLY:
+#             return "Monthly repetitions not humanized yet"
+#         elif self.freq == WEEKLY:
+#             weekdaystr = ', '.join([HUMAN_WEEKDAYS[day] for day in self.byweekday])
+#             return "%severy %s" % (verbiage, weekdaystr)
+#         elif self.freq == DAILY:
+#             return "%sdaily" % verbiage
+            
 class rrule(rrulebase):
     """
     That's the base of the rrule operation. It accepts all the keywords
@@ -424,16 +530,35 @@ class rrule(rrulebase):
         Easter Sunday. Passing the offset 0 to byeaster will yield the Easter
         Sunday itself. This is an extension to the RFC specification.
      """
+#     def humanize(self, verbosity=NORMAL):
+#         humanizer = RRuleHumanizer(self, verbosity=verbosity)
+#         return humanizer.render()
+
     def __init__(self, freq, dtstart=None,
-                 interval=1, wkst=None, count=None, until=None, bysetpos=None,
-#                  interval=None, wkst=None, count=None, until=None, bysetpos=None,
+                 interval=None, wkst=None, count=None, until=None, bysetpos=None,
                  bymonth=None, bymonthday=None, byyearday=None, byeaster=None,
                  byweekno=None, byweekday=None,
                  byhour=None, byminute=None, bysecond=None,
                  cache=False, normalized_start=False,
                  original_str='',):
         super(rrule, self).__init__(cache)
+        kwargs = locals().copy()
+        del kwargs['self']
+        if 'original_str' in kwargs:
+            del kwargs['original_str']
+        
+        original_kwargs = dict((k,v) for k,v in list(kwargs.items()) if v \
+            is not None and v is not False and not \
+            isinstance(v, datetime.datetime))
+        self.original_params = {
+            name.upper().replace(
+                'BYWEEKDAY', 'BYDAY'
+            ): val for name,val in list(original_kwargs.items())}
+
+        if not interval: # needed to work around checking the kwargs
+            interval = 1
         global easter
+        self._original_str = original_str
         if not dtstart:
             dtstart = datetime.datetime.now().replace(microsecond=0)
         elif not isinstance(dtstart, datetime.datetime):
@@ -680,6 +805,61 @@ class rrule(rrulebase):
                                           tzinfo=self._tzinfo))
             self._timeset.sort()
             self._timeset = tuple(self._timeset)
+        if normalized_start:
+            self.normalize_start()
+            
+    def normalize_start(self):
+        # resets dtstart to match the first instance
+        # should this be the default?
+        self._dtstart = self.after(self._dtstart, inc=True)
+        
+    def compare_rrules(self, other):
+        return self.repetition_str() == other.repetition_str()
+
+    def repetition_str(self, context=None, original_str=False):
+        return self.__unicode__(context=context, mode=REPETITION_ONLY, original_str=original_str)
+         
+    def fully_resolved_str(self, context=None, original_str=False):
+        return self.__unicode__(context=context, mode=FULLY_RESOLVED, original_str=original_str)
+
+    def alt_string(self, context=None, original_str=False, mode=NORMAL):
+        # mode=repetition_only|normal|fully_resolved, original_str=True
+        if original_str and self._original_str:
+            return self._original_str
+        parts = []
+        weekdays = []
+        DAYS = ['MO','TU','WE','TH','FR','SA','SU']
+        if self._byweekday:
+            weekdays = [DAYS[day] for day in self._byweekday]
+        for name, value in [ # filter out 0s if not mode==FULLY_RESOLVED
+                    ('FREQ', [FREQNAMES[self._freq]]),
+                    ('WKST', self._wkst),
+                    ('COUNT', self._count),
+                    ('BYSETPOS', self._bysetpos),
+                    ('BYMONTH', self._bymonth),
+                    ('BYMONTHDAY', self._bymonthday),
+                    ('BYYEARDAY', self._byyearday),
+                    ('BYWEEKNO', self._byweekno),
+                    ('BYDAY', weekdays),
+                    ('BYHOUR', self._byhour),
+                    ('BYMINUTE', self._byminute),
+                    ('BYSECOND', self._bysecond),
+                ]:
+            if (mode == FULLY_RESOLVED and value) or name in list(self.original_params.items()):
+                parts.append(name+'='+','.join(str(v) for v in value))
+        
+        if mode == FULLY_RESOLVED or self._interval != 1:
+            parts.append('INTERVAL='+str(self._interval))
+        if mode > REPETITION_ONLY and self._until:
+            parts.append('UNTIL='+datetime.datetime.strftime(self._until, DATETIME_FORMAT))
+        if mode > REPETITION_ONLY and self._dtstart:
+            start = 'DTSTART:'+datetime.datetime.strftime(self._dtstart, DATETIME_FORMAT)+'\n'
+        else:
+            start=''
+        if context:
+            return '%s%s:%s' % (start, context, ';'.join(parts))
+        else:
+            return '%s%s' % (start, ';'.join(parts))
 
     def __str__(self):
         """
@@ -1330,24 +1510,36 @@ class rruleset(rrulebase):
         def __ne__(self, other):
             return self.dt != other.dt
 
-    def __init__(self, cache=False):
+    def __init__(self, cache=False, original_str='', match_dtstarts=False):
         super(rruleset, self).__init__(cache)
         self._rrule = []
         self._rdate = []
         self._exrule = []
         self._exdate = []
+        self.first = None
+        self.last = None
+        self._original_str = original_str
+        self._match_dtstarts = match_dtstarts
 
     @_invalidates_cache
     def rrule(self, rrule):
         """ Include the given :py:class:`rrule` instance in the recurrence set
             generation. """
+        rrule.normalize_start() # this is not an elegant place to enforce this - needs some design thought
         self._rrule.append(rrule)
+        if not self.first or rrule._dtstart < self.first:
+            self.first = rrule._dtstart
+        if not self.last or not rrule._until or rrule._until > self.last:
+            self.last = rrule._until
 
     @_invalidates_cache
     def rdate(self, rdate):
         """ Include the given :py:class:`datetime` instance in the recurrence
             set generation. """
-        self._rdate.append(rdate)
+        if rdate in self._exdate:
+            self._exdate.remove(rdate)
+        else:
+            self._rdate.append(rdate)
 
     @_invalidates_cache
     def exrule(self, exrule):
@@ -1362,7 +1554,56 @@ class rruleset(rrulebase):
         """ Include the given datetime instance in the recurrence set
             exclusion list. Dates included that way will not be generated,
             even if some inclusive rrule or rdate matches them. """
-        self._exdate.append(exdate)
+        if exdate in self._rdate:
+            self._rdate.remove(exdate)
+        else:
+            self._exdate.append(exdate)
+
+    def _humanize_inclusions(self, verbosity=NORMAL):
+        # designed to work on a clustered rruleset, ie. one which has matching dtstarts and no rdates or exdates
+        text = []
+        for rule in self._rrule:
+            text.append(rule.humanize(verbosity=verbosity))
+        return '. '.join(text)
+
+    def _humanize_exclusions(self, verbosity=NORMAL):
+        # designed to work on a clustered rruleset, ie. one which has matching dtstarts and no rdates or exdates
+        text = []
+        for exrule in self._exrule:
+            exrule_humanizer = RRuleHumanizer(exrule, verbosity=verbosity)
+            text.append(exrule_humanizer.render()) # what if multiple rrules and until value differs?
+        return '. '.join(text)
+    
+    def repetition_str(self, original_str=False):
+        return self.__unicode__(mode=REPETITION_ONLY, original_str=original_str)
+         
+    def fully_resolved_str(self, original_str=False):
+        return self.__unicode__(mode=FULLY_RESOLVED, original_str=original_str)
+         
+    def __str__(self, original_str=False, mode=NORMAL):
+        if original_str and self._original_str:
+            return self._original_str
+        parts = []
+        for rr in self._rrule:
+            parts.append(rr.__str__(context='RRULE', mode=mode, original_str=original_str))
+        for rd in self._rdate:
+            parts.append('RDATE:%s' % datetime.datetime.strftime(rd, DATETIME_FORMAT))
+        for xr in self._exrule:
+            parts.append(xr.__str__(context='EXRULE', mode=mode, original_str=original_str))
+        for xd in self._exdate:
+            parts.append('EXDATE:%s' % datetime.datetime.strftime(xd, DATETIME_FORMAT))
+        return '\r'.join(parts)
+
+    def __repr__(self):
+        return "<%s: %s>" % (self.__class__.__name__, str(self).replace('\r', ' '))
+
+    def count(self):
+        for rr in self._rrule:
+            if not rr._until and not rr._count:
+                return -1
+        if not self._len:
+            for x in self: pass
+        return self._len
 
     def _iter(self):
         rlist = []
@@ -1396,6 +1637,36 @@ class rruleset(rrulebase):
                 heapq.heapreplace(rlist, ritem)
         self._len = total
 
+    def remove_instance(self, dt):
+        if dt in self:
+            if dt in self._rdate:
+                self._rdate.remove(dt)
+            else:
+                for r in self._rrule:
+                    if dt == r._dtstart:
+                        next = r[1]
+                        r._dtstart = next
+                        return
+                self._exdate.append(dt)
+                
+    def add_instance(self, dt):
+        if dt not in self:
+            if dt in self._exdate:
+                self._exdate.remove(dt)
+            else:
+                self._rdate.append(dt)
+                
+    def clean_rdates(self):
+        for dt in self._rdate:
+            if dt in self:
+                self._rdate.remove(dt)
+        for dt in self._exdate:
+            if dt not in self:
+                self._exdate.remove(dt)
+        
+    def move_instance(self, old_dt, new_dt):
+        self.remove_instance(old_dt)
+        self.add_instance(new_dt)
 
 class _rrulestr(object):
 
@@ -1477,7 +1748,8 @@ class _rrulestr(object):
                          dtstart=None,
                          cache=False,
                          ignoretz=False,
-                         tzinfos=None):
+                         tzinfos=None,
+                         match_dtstarts=False):
         if line.find(':') != -1:
             name, value = line.split(':')
             if name != "RRULE":
@@ -1506,7 +1778,8 @@ class _rrulestr(object):
                    forceset=False,
                    compatible=False,
                    ignoretz=False,
-                   tzinfos=None):
+                   tzinfos=None,
+                   match_dtstarts=False):
         global parser
         if compatible:
             forceset = True
@@ -1554,7 +1827,7 @@ class _rrulestr(object):
                 if name == "RRULE":
                     for parm in parms:
                         raise ValueError("unsupported RRULE parm: "+parm)
-                    rrulevals.append(value)
+                    rrulevals.append((dtstart, value))
                 elif name == "RDATE":
                     for parm in parms:
                         if parm != "VALUE=DATE-TIME":
@@ -1563,7 +1836,7 @@ class _rrulestr(object):
                 elif name == "EXRULE":
                     for parm in parms:
                         raise ValueError("unsupported EXRULE parm: "+parm)
-                    exrulevals.append(value)
+                    exrulevals.append((dtstart, value))
                 elif name == "EXDATE":
                     for parm in parms:
                         if parm != "VALUE=DATE-TIME":
@@ -1582,31 +1855,31 @@ class _rrulestr(object):
                     or exrulevals or exdatevals):
                 if not parser and (rdatevals or exdatevals):
                     from dateutil import parser
-                rset = rruleset(cache=cache)
+                rrset = rruleset(cache=cache, original_str=s, match_dtstarts=match_dtstarts)
                 for value in rrulevals:
-                    rset.rrule(self._parse_rfc_rrule(value, dtstart=dtstart,
+                    rrset.rrule(self._parse_rfc_rrule(value[1], dtstart=value[0],
                                                      ignoretz=ignoretz,
                                                      tzinfos=tzinfos))
                 for value in rdatevals:
                     for datestr in value.split(','):
-                        rset.rdate(parser.parse(datestr,
+                        rrset.rdate(parser.parse(datestr,
                                                 ignoretz=ignoretz,
                                                 tzinfos=tzinfos))
                 for value in exrulevals:
-                    rset.exrule(self._parse_rfc_rrule(value, dtstart=dtstart,
+                    rrset.exrule(self._parse_rfc_rrule(value[1], dtstart=value[0],
                                                       ignoretz=ignoretz,
                                                       tzinfos=tzinfos))
                 for value in exdatevals:
                     for datestr in value.split(','):
-                        rset.exdate(parser.parse(datestr,
+                        rrset.exdate(parser.parse(datestr,
                                                  ignoretz=ignoretz,
                                                  tzinfos=tzinfos))
                 if compatible and dtstart:
-                    rset.rdate(dtstart)
-                return rset
+                    rrset.rdate(dtstart)
+                return rrset
             else:
-                return self._parse_rfc_rrule(rrulevals[0],
-                                             dtstart=dtstart,
+                return self._parse_rfc_rrule(rrulevals[0][1],
+                                             dtstart=rrulevals[0][0],
                                              cache=cache,
                                              ignoretz=ignoretz,
                                              tzinfos=tzinfos)

@@ -816,58 +816,15 @@ class rrule(rrulebase):
     def compare_rrules(self, other):
         return self.repetition_str() == other.repetition_str()
 
-    def repetition_str(self, context=None, original_str=False):
-        return self.__unicode__(context=context, mode=REPETITION_ONLY, original_str=original_str)
-         
-    def fully_resolved_str(self, context=None, original_str=False):
-        return self.__unicode__(context=context, mode=FULLY_RESOLVED, original_str=original_str)
-
-    def alt_string(self, context=None, original_str=False, mode=NORMAL):
-        # mode=repetition_only|normal|fully_resolved, original_str=True
-        if original_str and self._original_str:
-            return self._original_str
-        parts = []
-        weekdays = []
-        DAYS = ['MO','TU','WE','TH','FR','SA','SU']
-        if self._byweekday:
-            weekdays = [DAYS[day] for day in self._byweekday]
-        for name, value in [ # filter out 0s if not mode==FULLY_RESOLVED
-                    ('FREQ', [FREQNAMES[self._freq]]),
-                    ('WKST', self._wkst),
-                    ('COUNT', self._count),
-                    ('BYSETPOS', self._bysetpos),
-                    ('BYMONTH', self._bymonth),
-                    ('BYMONTHDAY', self._bymonthday),
-                    ('BYYEARDAY', self._byyearday),
-                    ('BYWEEKNO', self._byweekno),
-                    ('BYDAY', weekdays),
-                    ('BYHOUR', self._byhour),
-                    ('BYMINUTE', self._byminute),
-                    ('BYSECOND', self._bysecond),
-                ]:
-            if (mode == FULLY_RESOLVED and value) or name in list(self.original_params.items()):
-                parts.append(name+'='+','.join(str(v) for v in value))
-        
-        if mode == FULLY_RESOLVED or self._interval != 1:
-            parts.append('INTERVAL='+str(self._interval))
-        if mode > REPETITION_ONLY and self._until:
-            parts.append('UNTIL='+datetime.datetime.strftime(self._until, DATETIME_FORMAT))
-        if mode > REPETITION_ONLY and self._dtstart:
-            start = 'DTSTART:'+datetime.datetime.strftime(self._dtstart, DATETIME_FORMAT)+'\n'
-        else:
-            start=''
-        if context:
-            return '%s%s:%s' % (start, context, ';'.join(parts))
-        else:
-            return '%s%s' % (start, ';'.join(parts))
-
-    def __str__(self):
+    def __str__(self, context='', original_str=False):
         """
         Output a string that would generate this RRULE if passed to rrulestr.
         This is mostly compatible with RFC2445, except for the
         dateutil-specific extension BYEASTER.
         """
 
+        if original_str and self._original_str:
+            return self._original_str
         output = []
         h, m, s = [None] * 3
         if self._dtstart:
@@ -920,7 +877,7 @@ class rrule(rrulebase):
                 parts.append(partfmt.format(name=name, vals=(','.join(str(v)
                                                              for v in value))))
 
-        output.append(';'.join(parts))
+        output.append('%s:%s' % (context, ';'.join(parts)))
         return '\n'.join(output)
 
     def replace(self, **kwargs):
@@ -1573,23 +1530,17 @@ class rruleset(rrulebase):
             exrule_humanizer = RRuleHumanizer(exrule, verbosity=verbosity)
             text.append(exrule_humanizer.render()) # what if multiple rrules and until value differs?
         return '. '.join(text)
-    
-    def repetition_str(self, original_str=False):
-        return self.__unicode__(mode=REPETITION_ONLY, original_str=original_str)
-         
-    def fully_resolved_str(self, original_str=False):
-        return self.__unicode__(mode=FULLY_RESOLVED, original_str=original_str)
-         
-    def __str__(self, original_str=False, mode=NORMAL):
+             
+    def __str__(self, original_str=False):
         if original_str and self._original_str:
             return self._original_str
         parts = []
         for rr in self._rrule:
-            parts.append(rr.__str__(context='RRULE', mode=mode, original_str=original_str))
+            parts.append(rr.__str__(context='RRULE', original_str=original_str))
         for rd in self._rdate:
             parts.append('RDATE:%s' % datetime.datetime.strftime(rd, DATETIME_FORMAT))
         for xr in self._exrule:
-            parts.append(xr.__str__(context='EXRULE', mode=mode, original_str=original_str))
+            parts.append(xr.__str__(context='EXRULE', original_str=original_str))
         for xd in self._exdate:
             parts.append('EXDATE:%s' % datetime.datetime.strftime(xd, DATETIME_FORMAT))
         return '\r'.join(parts)
